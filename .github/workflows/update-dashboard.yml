@@ -1,0 +1,44 @@
+name: Update momentum dashboard
+
+# Monthly: rescore the S&P 500 with picker/momentum_picker.py, rebuild index.html and commit it.
+# The commit to main republishes GitHub Pages (deployed from the main branch).
+# picker/ is a copy of trading-bots/momentum_picker.py + dashboard_template.html;
+# publish_dashboard.bat on the home PC refreshes that copy whenever it runs.
+
+on:
+  schedule:
+    - cron: "30 21 1 * *"   # 1st of each month, 21:30 UTC (after the US close; uses the latest close on weekends/holidays)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-dashboard
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: picker/requirements.txt
+      - run: pip install -r picker/requirements.txt
+      - name: Score stocks and build the dashboard
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -u picker/momentum_picker.py --out data
+      - name: Commit the new dashboard
+        run: |
+          cp data/dashboard.html index.html
+          git add index.html data/universe.csv
+          if git diff --cached --quiet; then echo "Nothing changed"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Momentum dashboard: picks for $(date -u +%F)"
+          git push
