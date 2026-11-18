@@ -1,0 +1,512 @@
+{
+ "as_of": "2026-11-18",
+ "generated": "2026-11-18",
+ "universe": 503,
+ "url": "https://kimblejennings97.github.io/momentum-dashboard/",
+ "strategies": [
+  {
+   "key": "momentum",
+   "name": "Momentum",
+   "picks": [
+    {
+     "ticker": "MRNA",
+     "name": "Moderna",
+     "sector": "Health Care",
+     "score": 100.0
+    },
+    {
+     "ticker": "OKTA",
+     "name": "Okta, Inc.",
+     "sector": "Information Technology",
+     "score": 99.8
+    },
+    {
+     "ticker": "MPC",
+     "name": "Marathon Petroleum",
+     "sector": "Energy",
+     "score": 99.6
+    },
+    {
+     "ticker": "VLO",
+     "name": "Valero Energy",
+     "sector": "Energy",
+     "score": 99.2
+    },
+    {
+     "ticker": "CRL",
+     "name": "Charles River Laboratories",
+     "sector": "Health Care",
+     "score": 99.0
+    },
+    {
+     "ticker": "ILMN",
+     "name": "Illumina, Inc.",
+     "sector": "Health Care",
+     "score": 98.8
+    },
+    {
+     "ticker": "PSX",
+     "name": "Phillips 66",
+     "sector": "Energy",
+     "score": 98.6
+    },
+    {
+     "ticker": "HPE",
+     "name": "Hewlett Packard Enterprise",
+     "sector": "Information Technology",
+     "score": 98.4
+    },
+    {
+     "ticker": "RVTY",
+     "name": "Revvity",
+     "sector": "Health Care",
+     "score": 98.2
+    },
+    {
+     "ticker": "NTAP",
+     "name": "NetApp",
+     "sector": "Information Technology",
+     "score": 98.0
+    },
+    {
+     "ticker": "VTRS",
+     "name": "Viatris",
+     "sector": "Health Care",
+     "score": 97.8
+    },
+    {
+     "ticker": "TGT",
+     "name": "Target Corporation",
+     "sector": "Consumer Staples",
+     "score": 97.4
+    },
+    {
+     "ticker": "APA",
+     "name": "APA Corporation",
+     "sector": "Energy",
+     "score": 97.2
+    },
+    {
+     "ticker": "CRWD",
+     "name": "CrowdStrike",
+     "sector": "Information Technology",
+     "score": 97.0
+    },
+    {
+     "ticker": "AMD",
+     "name": "Advanced Micro Devices",
+     "sector": "Information Technology",
+     "score": 96.6
+    },
+    {
+     "ticker": "BBY",
+     "name": "Best Buy",
+     "sector": "Consumer Discretionary",
+     "score": 96.4
+    },
+    {
+     "ticker": "NUE",
+     "name": "Nucor",
+     "sector": "Materials",
+     "score": 96.0
+    },
+    {
+     "ticker": "HST",
+     "name": "Host Hotels & Resorts",
+     "sector": "Real Estate",
+     "score": 95.8
+    },
+    {
+     "ticker": "SWK",
+     "name": "Stanley Black & Decker",
+     "sector": "Industrials",
+     "score": 95.4
+    },
+    {
+     "ticker": "HAS",
+     "name": "Hasbro",
+     "sector": "Consumer Discretionary",
+     "score": 95.2
+    }
+   ]
+  },
+  {
+   "key": "lowvol",
+   "name": "Low Volatility",
+   "picks": [
+    {
+     "ticker": "ED",
+     "name": "Consolidated Edison",
+     "sector": "Utilities",
+     "score": 100.0
+    },
+    {
+     "ticker": "KO",
+     "name": "Coca-Cola Company (The)",
+     "sector": "Consumer Staples",
+     "score": 99.8
+    },
+    {
+     "ticker": "CB",
+     "name": "Chubb Limited",
+     "sector": "Financials",
+     "score": 99.6
+    },
+    {
+     "ticker": "BRK-B",
+     "name": "Berkshire Hathaway",
+     "sector": "Financials",
+     "score": 99.4
+    },
+    {
+     "ticker": "DUK",
+     "name": "Duke Energy",
+     "sector": "Utilities",
+     "score": 99.2
+    },
+    {
+     "ticker": "EVRG",
+     "name": "Evergy",
+     "sector": "Utilities",
+     "score": 99.0
+    },
+    {
+     "ticker": "AFL",
+     "name": "Aflac",
+     "sector": "Financials",
+     "score": 98.8
+    },
+    {
+     "ticker": "RSG",
+     "name": "Republic Services",
+     "sector": "Industrials",
+     "score": 98.4
+    },
+    {
+     "ticker": "AWK",
+     "name": "American Water Works",
+     "sector": "Utilities",
+     "score": 98.2
+    },
+    {
+     "ticker": "WEC",
+     "name": "WEC Energy Group",
+     "sector": "Utilities",
+     "score": 97.8
+    },
+    {
+     "ticker": "TRV",
+     "name": "Travelers Companies (The)",
+     "sector": "Financials",
+     "score": 97.2
+    },
+    {
+     "ticker": "ACGL",
+     "name": "Arch Capital Group",
+     "sector": "Financials",
+     "score": 96.8
+    },
+    {
+     "ticker": "JNJ",
+     "name": "Johnson & Johnson",
+     "sector": "Health Care",
+     "score": 96.4
+    },
+    {
+     "ticker": "WM",
+     "name": "Waste Management",
+     "sector": "Industrials",
+     "score": 96.0
+    },
+    {
+     "ticker": "ESS",
+     "name": "Essex Property Trust",
+     "sector": "Real Estate",
+     "score": 95.2
+    },
+    {
+     "ticker": "MO",
+     "name": "Altria",
+     "sector": "Consumer Staples",
+     "score": 94.8
+    },
+    {
+     "ticker": "KIM",
+     "name": "Kimco Realty",
+     "sector": "Real Estate",
+     "score": 94.2
+    },
+    {
+     "ticker": "MDLZ",
+     "name": "Mondelez International",
+     "sector": "Consumer Staples",
+     "score": 94.0
+    },
+    {
+     "ticker": "FRT",
+     "name": "Federal Realty Investment Trust",
+     "sector": "Real Estate",
+     "score": 93.6
+    },
+    {
+     "ticker": "OKE",
+     "name": "Oneok",
+     "sector": "Energy",
+     "score": 92.4
+    }
+   ]
+  },
+  {
+   "key": "trend",
+   "name": "Steady Trend",
+   "picks": [
+    {
+     "ticker": "MRNA",
+     "name": "Moderna",
+     "sector": "Health Care",
+     "score": 100.0
+    },
+    {
+     "ticker": "MPC",
+     "name": "Marathon Petroleum",
+     "sector": "Energy",
+     "score": 99.8
+    },
+    {
+     "ticker": "VTRS",
+     "name": "Viatris",
+     "sector": "Health Care",
+     "score": 99.6
+    },
+    {
+     "ticker": "PSX",
+     "name": "Phillips 66",
+     "sector": "Energy",
+     "score": 99.4
+    },
+    {
+     "ticker": "ILMN",
+     "name": "Illumina, Inc.",
+     "sector": "Health Care",
+     "score": 99.2
+    },
+    {
+     "ticker": "VLO",
+     "name": "Valero Energy",
+     "sector": "Energy",
+     "score": 99.0
+    },
+    {
+     "ticker": "HST",
+     "name": "Host Hotels & Resorts",
+     "sector": "Real Estate",
+     "score": 98.8
+    },
+    {
+     "ticker": "NUE",
+     "name": "Nucor",
+     "sector": "Materials",
+     "score": 98.6
+    },
+    {
+     "ticker": "APA",
+     "name": "APA Corporation",
+     "sector": "Energy",
+     "score": 98.4
+    },
+    {
+     "ticker": "TGT",
+     "name": "Target Corporation",
+     "sector": "Consumer Staples",
+     "score": 98.0
+    },
+    {
+     "ticker": "TRGP",
+     "name": "Targa Resources",
+     "sector": "Energy",
+     "score": 97.8
+    },
+    {
+     "ticker": "HPE",
+     "name": "Hewlett Packard Enterprise",
+     "sector": "Information Technology",
+     "score": 97.6
+    },
+    {
+     "ticker": "NTAP",
+     "name": "NetApp",
+     "sector": "Information Technology",
+     "score": 97.4
+    },
+    {
+     "ticker": "RVTY",
+     "name": "Revvity",
+     "sector": "Health Care",
+     "score": 97.2
+    },
+    {
+     "ticker": "CSX",
+     "name": "CSX Corporation",
+     "sector": "Industrials",
+     "score": 97.0
+    },
+    {
+     "ticker": "WAB",
+     "name": "Wabtec",
+     "sector": "Industrials",
+     "score": 96.8
+    },
+    {
+     "ticker": "GWW",
+     "name": "W. W. Grainger",
+     "sector": "Industrials",
+     "score": 96.6
+    },
+    {
+     "ticker": "CRL",
+     "name": "Charles River Laboratories",
+     "sector": "Health Care",
+     "score": 96.4
+    },
+    {
+     "ticker": "TXN",
+     "name": "Texas Instruments",
+     "sector": "Information Technology",
+     "score": 96.2
+    },
+    {
+     "ticker": "MET",
+     "name": "MetLife",
+     "sector": "Financials",
+     "score": 95.4
+    }
+   ]
+  },
+  {
+   "key": "pullback",
+   "name": "Pullback",
+   "picks": [
+    {
+     "ticker": "HPE",
+     "name": "Hewlett Packard Enterprise",
+     "sector": "Information Technology",
+     "score": 98.4
+    },
+    {
+     "ticker": "TWLO",
+     "name": "Twilio",
+     "sector": "Information Technology",
+     "score": 97.4
+    },
+    {
+     "ticker": "VLO",
+     "name": "Valero Energy",
+     "sector": "Energy",
+     "score": 97.2
+    },
+    {
+     "ticker": "MRNA",
+     "name": "Moderna",
+     "sector": "Health Care",
+     "score": 97.0
+    },
+    {
+     "ticker": "MPC",
+     "name": "Marathon Petroleum",
+     "sector": "Energy",
+     "score": 96.8
+    },
+    {
+     "ticker": "FTNT",
+     "name": "Fortinet",
+     "sector": "Information Technology",
+     "score": 96.6
+    },
+    {
+     "ticker": "ILMN",
+     "name": "Illumina, Inc.",
+     "sector": "Health Care",
+     "score": 96.2
+    },
+    {
+     "ticker": "NTAP",
+     "name": "NetApp",
+     "sector": "Information Technology",
+     "score": 95.0
+    },
+    {
+     "ticker": "P",
+     "name": "Everpure",
+     "sector": "Information Technology",
+     "score": 94.4
+    },
+    {
+     "ticker": "PSX",
+     "name": "Phillips 66",
+     "sector": "Energy",
+     "score": 94.0
+    },
+    {
+     "ticker": "APA",
+     "name": "APA Corporation",
+     "sector": "Energy",
+     "score": 90.4
+    },
+    {
+     "ticker": "HUM",
+     "name": "Humana",
+     "sector": "Health Care",
+     "score": 88.0
+    },
+    {
+     "ticker": "IFF",
+     "name": "International Flavors & Fragrances",
+     "sector": "Materials",
+     "score": 87.4
+    },
+    {
+     "ticker": "MRK",
+     "name": "Merck & Co.",
+     "sector": "Health Care",
+     "score": 86.0
+    },
+    {
+     "ticker": "XOM",
+     "name": "ExxonMobil",
+     "sector": "Energy",
+     "score": 85.2
+    },
+    {
+     "ticker": "CNC",
+     "name": "Centene Corporation",
+     "sector": "Health Care",
+     "score": 84.2
+    },
+    {
+     "ticker": "NUE",
+     "name": "Nucor",
+     "sector": "Materials",
+     "score": 83.0
+    },
+    {
+     "ticker": "GRMN",
+     "name": "Garmin",
+     "sector": "Consumer Discretionary",
+     "score": 78.6
+    },
+    {
+     "ticker": "STT",
+     "name": "State Street Corporation",
+     "sector": "Financials",
+     "score": 77.6
+    },
+    {
+     "ticker": "ROST",
+     "name": "Ross Stores",
+     "sector": "Consumer Discretionary",
+     "score": 77.4
+    }
+   ]
+  }
+ ]
+}

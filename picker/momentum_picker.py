@@ -209,6 +209,89 @@ def score(f: pd.DataFrame) -> pd.DataFrame:
     return f
 
 
+# ---------------------------------------------------------------------------
+# Other strategies (extra tabs on the dashboard).
+# Momentum (WEIGHTS / score() above) is the strategy that is actually traded and
+# that pullback_bot.py imports. Nothing in this section changes it: these are
+# separate rankings that only add columns and dashboard tabs.
+# ---------------------------------------------------------------------------
+STRATEGIES = {
+    "momentum": {
+        "name": "Momentum",
+        "short": "Stocks with the strongest 6–12 month run, held for the trend to continue.",
+        "weights": WEIGHTS, "lower_better": [],
+        "rule": "scored and trading above its 200-day average",
+    },
+    "lowvol": {
+        "name": "Low Volatility",
+        "short": "The calmest stocks: smallest daily swings, least market sensitivity and shallow drawdowns.",
+        "weights": {"vol_1y": 0.45, "beta_1y": 0.30, "max_dd_1y": 0.25}, "lower_better": ["vol_1y", "beta_1y"],
+        "rule": "scored and trading above its 200-day average",
+    },
+    "trend": {
+        "name": "Steady Trend",
+        "short": "Smooth, consistent uptrends: many up months, a rising 200-day average, near highs.",
+        "weights": {"up_months_12": 0.30, "risk_adj_mom": 0.25, "ma200_slope": 0.25, "pct_off_high": 0.20},
+        "lower_better": [],
+        "rule": "above its 200-day average, 50-day above 200-day, and the 200-day average rising",
+    },
+    "pullback": {
+        "name": "Pullback",
+        "short": "Strong 12-month winners that have dipped over the last month: buying the dip inside an uptrend.",
+        "weights": {"ret_12_1": 0.40, "ret_1m": 0.35, "dist_50dma": 0.25}, "lower_better": ["ret_1m", "dist_50dma"],
+        "rule": "above its 200-day average, up over 12 months, and down over the last month",
+    },
+}
+EXTRA_FACTORS = ["beta_1y", "max_dd_1y", "up_months_12", "ma200_slope", "dist_50dma"]
+
+
+def add_extra_factors(f: pd.DataFrame, close: pd.DataFrame, spy: pd.Series) -> pd.DataFrame:
+    """Factors used only by the extra strategies, as of the last row of `close`. Returns a copy."""
+    f = f.copy()
+    c = close.ffill(limit=5).reindex(columns=f.index)
+    rets = c.pct_change(fill_method=None).iloc[-252:]
+    sr = spy.ffill().pct_change().reindex(rets.index)
+    rc, sc = rets - rets.mean(), sr - sr.mean()
+    f["beta_1y"] = rc.mul(sc, axis=0).mean() / (sc ** 2).mean()
+    last = c.iloc[-252:]
+    f["max_dd_1y"] = (last / last.cummax() - 1).min()
+    if len(c) > 253:  # share of the last twelve 21-day blocks that closed higher
+        pts = c.iloc[[-1 - 21 * i for i in range(13)]].to_numpy()
+        f["up_months_12"] = ((pts[:-1] / pts[1:] - 1) > 0).mean(axis=0)
+    else:
+        f["up_months_12"] = np.nan
+    prev_ma200 = c.iloc[-221:-21].mean() if len(c) > 221 else np.nan
+    f["ma200_slope"] = f["ma200"] / prev_ma200 - 1
+    f["dist_50dma"] = f["price"] / f["ma50"] - 1
+    return f
+
+
+def score_strategy(f: pd.DataFrame, key: str) -> pd.DataFrame:
+    """Like score(), for any strategy in STRATEGIES. "momentum" is exactly score()."""
+    if key == "momentum":
+        return score(f)
+    spec = STRATEGIES[key]
+    w, low = spec["weights"], set(spec["lower_better"])
+    f = f.copy()
+    f["passes_filters"] = (
+        (f["history_days"] >= MIN_HISTORY)
+        & (f["price"] >= MIN_PRICE)
+        & (f["dollar_vol_20d"] >= MIN_DOLLAR_VOLUME)
+        & f[list(w)].notna().all(axis=1)
+    )
+    ok = f[f["passes_filters"]]
+    composite = sum(_zscore(-ok[k] if k in low else ok[k]) * wt for k, wt in w.items())
+    f["composite"] = composite
+    f["score"] = (composite.rank(pct=True) * 100).round(1)
+    trend = f["above_200dma"].astype(bool)
+    if key == "trend":
+        trend &= f["ma50_over_200"].astype(bool) & (f["ma200_slope"] > 0)
+    elif key == "pullback":
+        trend &= (f["ret_12_1"] > 0) & (f["ret_1m"] < 0)
+    f["eligible"] = f["passes_filters"] & trend
+    return f
+
+
 def pick(f: pd.DataFrame, top: int, sector_cap: int, sectors: pd.Series | None) -> pd.Index:
     """Top-N eligible names by score, at most `sector_cap` per sector."""
     cand = f[f["eligible"]].sort_values("composite", ascending=False)
@@ -227,7 +310,7 @@ def pick(f: pd.DataFrame, top: int, sector_cap: int, sectors: pd.Series | None) 
 # ---------------------------------------------------------------------------
 # Backtest: monthly rebalance into the top-N, equal weight
 # ---------------------------------------------------------------------------
-def backtest(close, volume, spy, sectors, top, sector_cap) -> dict:
+def backtest(close, volume, spy, sectors, top, sector_cap, strategy: str = "momentum") -> dict:
     c = close.ffill(limit=5)
     month_ends = c.groupby(c.index.to_period("M")).tail(1).index
     month_ends = [d for d in month_ends if c.index.get_loc(d) >= MIN_HISTORY]
@@ -242,7 +325,11 @@ def backtest(close, volume, spy, sectors, top, sector_cap) -> dict:
 
     for i, d in enumerate(month_ends[:-1]):
         loc = c.index.get_loc(d)
-        f = score(compute_factors(close.iloc[: loc + 1], volume.iloc[: loc + 1], spy.iloc[: loc + 1]))
+        fac = compute_factors(close.iloc[: loc + 1], volume.iloc[: loc + 1], spy.iloc[: loc + 1])
+        if strategy == "momentum":
+            f = score(fac)
+        else:
+            f = score_strategy(add_extra_factors(fac, close.iloc[: loc + 1], spy.iloc[: loc + 1]), strategy)
         hold = pick(f, top, sector_cap, sectors)
         turnover = 1 - len(hold.intersection(prev)) / max(len(hold), 1) if len(prev) else 1.0
         prev = hold
@@ -283,15 +370,67 @@ def backtest(close, volume, spy, sectors, top, sector_cap) -> dict:
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
-def build_dashboard(table: pd.DataFrame, bt: dict, meta: dict, out: Path) -> None:
+def build_dashboard(table: pd.DataFrame, bt: dict, meta: dict, out: Path, strategies: list | None = None) -> None:
     cols = ["rank", "ticker", "name", "sector", "index", "pick", "eligible", "score", "price",
             "ret_1m", "ret_3m", "ret_6_1", "ret_12_1", "ret_12m", "rel_strength_6m",
             "vol_1y", "pct_off_high", "above_200dma", "ma50_over_200", "dollar_vol_20d"]
+    cols += [c for c in EXTRA_FACTORS + ["st"] if c in table.columns]
     rows = table[cols].replace({np.nan: None}).to_dict(orient="records")
     payload = {"meta": meta, "rows": rows, "backtest": bt}
+    if strategies:
+        payload["strategies"] = strategies
     html = TEMPLATE.read_text(encoding="utf-8")
     html = html.replace("/*__DATA__*/null", json.dumps(payload, default=float))
     out.write_text(html, encoding="utf-8")
+
+
+def other_strategies(f, close_s, vol_s, spy, uni, table, bt, args) -> list:
+    """Score the extra strategies, add their factor columns and per-strategy
+    [rank, score, pick, eligible] (column "st") to `table`, and return tab metadata."""
+    fx = add_extra_factors(f, close_s, spy)
+    for c in EXTRA_FACTORS:
+        table[c] = table["ticker"].map(fx[c])
+    st = {t: {} for t in table["ticker"]}
+    tabs = []
+    for key, spec in STRATEGIES.items():
+        entry = {"key": key, "name": spec["name"], "short": spec["short"], "rule": spec["rule"],
+                 "weights": spec["weights"], "lower_better": spec["lower_better"]}
+        if key == "momentum":  # already in the main rank/score/pick/eligible columns
+            entry.update(picks=int(table["pick"].sum()), eligible=int(table["eligible"].sum()), backtest=None)
+            tabs.append(entry)
+            continue
+        sf = score_strategy(fx, key)
+        chosen = pick(sf, args.top, args.sector_cap, uni["sector"])
+        order = sf[sf["passes_filters"]].sort_values("composite", ascending=False).index
+        rank = {t: i + 1 for i, t in enumerate(order)}
+        for t in st:
+            if t in sf.index:
+                s = sf.at[t, "score"]
+                st[t][key] = [rank.get(t), None if pd.isna(s) else float(s), bool(t in chosen), bool(sf.at[t, "eligible"])]
+        sbt = {}
+        if not args.no_backtest:
+            print(f"Backtesting {spec['name']}...")
+            sbt = backtest(close_s, vol_s, spy, uni["sector"], args.top, args.sector_cap, strategy=key)
+        entry.update(picks=len(chosen), eligible=int(sf["eligible"].sum()), scored=int(sf["passes_filters"].sum()), backtest=sbt)
+        tabs.append(entry)
+        print(f"  {spec['name']}: top picks {', '.join(chosen[:8])}{'…' if len(chosen) > 8 else ''}")
+    table["st"] = table["ticker"].map(st)
+    return tabs
+
+
+def write_picks_json(table: pd.DataFrame, strategies: list, meta: dict, out: Path) -> None:
+    """Small public summary (date + top picks per strategy) that other pages can fetch."""
+    def top_list(key):
+        if key == "momentum":
+            sel = table[table["pick"]].sort_values("rank")
+            return [{"ticker": r.ticker, "name": r.name, "sector": r.sector, "score": r.score} for r in sel.itertuples()]
+        rows = [(v[key], r) for r, v in zip(table.itertuples(), table["st"]) if key in v and v[key][2]]
+        rows.sort(key=lambda x: x[0][0])
+        return [{"ticker": r.ticker, "name": r.name, "sector": r.sector, "score": v[1]} for v, r in rows]
+    out_obj = {"as_of": meta["as_of"], "generated": meta["generated"], "universe": meta["universe"],
+               "url": "https://kimblejennings97.github.io/momentum-dashboard/",
+               "strategies": [{"key": s["key"], "name": s["name"], "picks": top_list(s["key"])} for s in strategies]}
+    out.write_text(json.dumps(out_obj, default=float, indent=1), encoding="utf-8")
 
 
 def run(close, volume, uni, args, out_dir: Path) -> pd.DataFrame:
@@ -325,7 +464,11 @@ def run(close, volume, uni, args, out_dir: Path) -> pd.DataFrame:
             "scored": int(table["passes_filters"].sum()), "eligible": int(table["eligible"].sum()),
             "top": args.top, "sector_cap": args.sector_cap, "weights": WEIGHTS,
             "min_dollar_volume": MIN_DOLLAR_VOLUME, "cost_bps": TRADING_COST_BPS}
-    build_dashboard(table, bt, meta, out_dir / "dashboard.html")
+
+    # extra dashboard tabs (the CSV above is already written and stays momentum-only)
+    strategies = other_strategies(f, close_s, vol_s, spy, uni, table, bt, args)
+    build_dashboard(table, bt, meta, out_dir / "dashboard.html", strategies)
+    write_picks_json(table, strategies, meta, out_dir / "picks.json")
 
     print(f"\nTop {args.top} momentum picks as of {as_of}:")
     show = table[table["pick"]][["rank", "ticker", "name", "sector", "score", "ret_12_1", "ret_6_1", "vol_1y"]]

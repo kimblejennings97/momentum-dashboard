@@ -63,19 +63,28 @@
   .bars .n { text-align: right; font-variant-numeric: tabular-nums; }
   .foot { color: var(--muted); font-size: 12px; }
   .foot p { margin: 4px 0; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+  .pills button { border: 1px solid var(--border); background: var(--surface); color: var(--ink-2); border-radius: 999px;
+                  padding: 7px 15px; font: inherit; font-weight: 500; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+  .pills button:hover { border-color: var(--axis); color: var(--ink); }
+  .pills button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--page); }
+  .pills button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+  .sdesc { color: var(--ink-2); margin: 0 0 18px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Momentum picks</h1>
+  <h1 id="title">Momentum picks</h1>
   <p class="sub" id="sub"></p>
+  <nav class="pills" id="strats" role="tablist" aria-label="Strategy"></nav>
+  <p class="sdesc" id="sdesc"></p>
 
   <div class="tiles" id="tiles"></div>
 
   <div class="grid2">
     <div class="card" id="btcard">
       <h2 id="bttitle">Backtest: top picks vs SPY (growth of $1)</h2>
-      <div class="legend"><span><i style="background:var(--s1)"></i>Momentum strategy</span><span><i style="background:var(--s2)"></i>SPY</span></div>
+      <div class="legend"><span><i style="background:var(--s1)"></i><span id="legname">Momentum</span> strategy</span><span><i style="background:var(--s2)"></i>SPY</span></div>
       <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
     </div>
     <div class="card">
@@ -100,7 +109,7 @@
 
   <div class="foot">
     <p><b>How the score works:</b> <span id="method"></span></p>
-    <p><b>Eligible</b> = scored and trading above its 200-day average. Picks are the top eligible names, capped per sector.</p>
+    <p><b>Eligible</b> = <span id="rule">scored and trading above its 200-day average</span>. Picks are the top eligible names, capped per sector.</p>
     <p>Backtest uses today's index members (survivorship bias flatters it) and ignores taxes. Not investment advice.</p>
   </div>
 </main>
@@ -114,40 +123,82 @@ const spct = (v, d = 0) => v == null ? "–" : (Number(fix(v, d)) > 0 ? "+" : ""
 const cls = v => v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "";
 const money = v => v == null ? "–" : v >= 1e9 ? "$" + (v / 1e9).toFixed(1) + "B" : "$" + (v / 1e6).toFixed(0) + "M";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const $ = id => document.getElementById(id);
 
-const { meta, rows, backtest: bt } = DATA;
-const picks = rows.filter(r => r.pick);
-
-document.getElementById("sub").textContent =
-  `Prices as of ${meta.as_of} · ${meta.universe} stocks scanned · ${meta.scored} scored · ${meta.eligible} in an uptrend · top ${meta.top}, max ${meta.sector_cap || "∞"} per sector`;
+const { meta, rows: baseRows } = DATA;
+// Older payloads had no "strategies": show Momentum only.
+const STRATS = DATA.strategies || [{ key: "momentum", name: "Momentum", short: "", rule: "scored and trading above its 200-day average",
+  weights: meta.weights, lower_better: [], eligible: meta.eligible }];
+let cur, rows, picks, bt;
 
 const labels = { ret_12_1: "12-mo return (skip last month)", ret_6_1: "6-mo return (skip last month)",
   risk_adj_mom: "12-mo return ÷ volatility", rel_strength_6m: "6-mo strength vs SPY",
-  pct_off_high: "closeness to 52-wk high", ret_3m: "3-mo return" };
-document.getElementById("method").textContent = Object.entries(meta.weights)
-  .map(([k, w]) => `${labels[k] || k} ${Math.round(w * 100)}%`).join(" · ") +
-  ". Each factor is z-scored across the universe, weighted, then ranked to a 0–100 percentile.";
+  pct_off_high: "closeness to 52-wk high", ret_3m: "3-mo return",
+  vol_1y: "low 1-yr volatility", beta_1y: "low beta vs SPY", max_dd_1y: "shallow 1-yr drawdown",
+  up_months_12: "share of up months", ma200_slope: "rising 200-day average",
+  ret_1m: "last-month dip", dist_50dma: "pullback below 50-day average" };
+
+// Row view for a strategy: Momentum uses the main columns, the others use r.st[key] = [rank, score, pick, eligible].
+function rowsFor(k) {
+  if (k === "momentum") return baseRows;
+  return baseRows.map(r => { const s = r.st && r.st[k];
+    return { ...r, rank: s ? s[0] : null, score: s ? s[1] : null, pick: s ? s[2] : false, eligible: s ? s[3] : false }; });
+}
+
+// ---- strategy pills ----
+const pillsEl = $("strats");
+if (STRATS.length > 1) {
+  pillsEl.innerHTML = STRATS.map(s => `<button role="tab" data-k="${esc(s.key)}" aria-selected="false">${esc(s.name)}</button>`).join("");
+  pillsEl.addEventListener("click", e => { const b = e.target.closest("button"); if (b) setStrategy(b.dataset.k, true); });
+  pillsEl.addEventListener("keydown", e => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const i = STRATS.indexOf(cur), n = STRATS[(i + (e.key === "ArrowRight" ? 1 : -1) + STRATS.length) % STRATS.length];
+    setStrategy(n.key, true); pillsEl.querySelector(`[data-k="${n.key}"]`).focus();
+  });
+} else pillsEl.remove();
+
+function setStrategy(k, push) {
+  cur = STRATS.find(s => s.key === k) || STRATS[0];
+  rows = rowsFor(cur.key); picks = rows.filter(r => r.pick);
+  bt = cur.key === "momentum" ? DATA.backtest : cur.backtest;
+  pillsEl.querySelectorAll("button").forEach(b => { const on = b.dataset.k === cur.key; b.setAttribute("aria-selected", on); b.tabIndex = on ? 0 : -1; });
+  if (push) history.replaceState(null, "", cur.key === "momentum" ? location.pathname : "#" + cur.key);
+  document.title = `${cur.name} Picks`;
+  $("title").textContent = `${cur.name} picks`;
+  $("sdesc").textContent = cur.short || "";
+  $("legname").textContent = cur.name;
+  $("rule").textContent = cur.rule;
+  $("sub").textContent = `Prices as of ${meta.as_of} · ${meta.universe} stocks scanned · ${cur.scored ?? meta.scored} scored · ` +
+    `${cur.eligible ?? meta.eligible} eligible · top ${meta.top}, max ${meta.sector_cap || "∞"} per sector`;
+  $("method").textContent = Object.entries(cur.weights).map(([f, w]) => `${labels[f] || f} ${Math.round(w * 100)}%`).join(" · ") +
+    ". Each factor is z-scored across the universe, weighted, then ranked to a 0–100 percentile.";
+  drawTiles(); document.querySelector("#chart svg")?.remove(); drawChart(); drawBars();
+  sortKey = "rank"; sortDir = 1; render();
+}
 
 // ---- tiles ----
-const tiles = [];
-if (bt && bt.strategy) {
-  tiles.push(["Strategy CAGR", pct(bt.strategy.cagr), `SPY ${pct(bt.spy.cagr)} · ${bt.start.slice(0, 4)}–${bt.end.slice(0, 4)}`]);
-  tiles.push(["Max drawdown", pct(bt.strategy.max_drawdown), `SPY ${pct(bt.spy.max_drawdown)}`]);
-  tiles.push(["Sharpe ratio", bt.strategy.sharpe?.toFixed(2) ?? "–", `SPY ${bt.spy.sharpe?.toFixed(2) ?? "–"}`]);
-  tiles.push(["Months beating SPY", pct(bt.pct_months_beat_spy, 0), `avg monthly turnover ${pct(bt.avg_turnover, 0)}`]);
-} else {
-  const avg = k => picks.reduce((a, r) => a + (r[k] || 0), 0) / (picks.length || 1);
-  tiles.push(["Picks", picks.length, "top eligible names"]);
-  tiles.push(["Avg 12-mo return", spct(avg("ret_12m")), "of picks"]);
-  tiles.push(["Avg volatility", pct(avg("vol_1y"), 0), "annualized, of picks"]);
+function drawTiles() {
+  const tiles = [];
+  if (bt && bt.strategy) {
+    tiles.push(["Strategy CAGR", pct(bt.strategy.cagr), `SPY ${pct(bt.spy.cagr)} · ${bt.start.slice(0, 4)}–${bt.end.slice(0, 4)}`]);
+    tiles.push(["Max drawdown", pct(bt.strategy.max_drawdown), `SPY ${pct(bt.spy.max_drawdown)}`]);
+    tiles.push(["Sharpe ratio", bt.strategy.sharpe?.toFixed(2) ?? "–", `SPY ${bt.spy.sharpe?.toFixed(2) ?? "–"}`]);
+    tiles.push(["Months beating SPY", pct(bt.pct_months_beat_spy, 0), `avg monthly turnover ${pct(bt.avg_turnover, 0)}`]);
+  } else {
+    const avg = k => picks.reduce((a, r) => a + (r[k] || 0), 0) / (picks.length || 1);
+    tiles.push(["Picks", picks.length, "top eligible names"]);
+    tiles.push(["Avg 12-mo return", spct(avg("ret_12m")), "of picks"]);
+    tiles.push(["Avg volatility", pct(avg("vol_1y"), 0), "annualized, of picks"]);
+  }
+  $("tiles").innerHTML = tiles.map(([l, v, n]) =>
+    `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join("");
 }
-document.getElementById("tiles").innerHTML = tiles.map(([l, v, n]) =>
-  `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join("");
 
 // ---- equity curve ----
 function drawChart() {
-  const host = document.getElementById("chart");
-  if (!bt || !bt.curve || !bt.curve.length) { document.getElementById("btcard").style.display = "none"; return; }
+  const host = $("chart"), card = $("btcard");
+  if (!bt || !bt.curve || !bt.curve.length) { card.style.display = "none"; return; }
+  card.style.display = "";
   const pts = bt.curve, W = host.clientWidth || 600, H = 260, m = { t: 10, r: 64, b: 24, l: 40 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
   const ys = pts.flatMap(p => [p.s, p.b]);
@@ -162,7 +213,7 @@ function drawChart() {
   const last = pts[pts.length - 1];
   let ls = y(last.s), lb = y(last.b);
   if (Math.abs(ls - lb) < 14) { const mid = (ls + lb) / 2, up = ls < lb; ls = mid + (up ? -7 : 7); lb = mid + (up ? 7 : -7); }
-  host.insertAdjacentHTML("afterbegin", `<svg width="${W}" height="${H}" role="img" aria-label="Growth of $1: strategy vs SPY">
+  host.insertAdjacentHTML("afterbegin", `<svg width="${W}" height="${H}" role="img" aria-label="Growth of $1: ${esc(cur.name)} strategy vs SPY">
     ${ticks.map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/>
       <text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">$${v.toFixed(step < 0.5 ? 2 : 1)}</text>`).join("")}
     <line x1="${m.l}" x2="${W - m.r}" y1="${m.t + ih}" y2="${m.t + ih}" stroke="var(--axis)"/>
@@ -176,7 +227,7 @@ function drawChart() {
     <circle id="db" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" style="display:none"/>
     <rect x="${m.l}" y="0" width="${iw}" height="${H}" fill="transparent" id="hit"/>
   </svg>`);
-  const tip = document.getElementById("tip"), hit = host.querySelector("#hit");
+  const tip = $("tip"), hit = host.querySelector("#hit");
   const xh = host.querySelector("#xh"), ds = host.querySelector("#ds"), db = host.querySelector("#db");
   const show = ev => {
     const r = hit.getBoundingClientRect();
@@ -188,7 +239,7 @@ function drawChart() {
     db.setAttribute("cx", x(i)); db.setAttribute("cy", y(p.b));
     tip.style.display = "block";
     tip.innerHTML = `<div style="color:var(--ink-2)">${p.d}</div>
-      <div><span style="color:var(--s1)">●</span> Strategy <b>$${p.s.toFixed(2)}</b></div>
+      <div><span style="color:var(--s1)">●</span> ${esc(cur.name)} <b>$${p.s.toFixed(2)}</b></div>
       <div><span style="color:var(--s2)">●</span> SPY <b>$${p.b.toFixed(2)}</b></div>`;
     const tx = x(i) + 12 + tip.offsetWidth > W ? x(i) - tip.offsetWidth - 12 : x(i) + 12;
     tip.style.left = tx + "px"; tip.style.top = Math.min(y(p.s), y(p.b)) + "px";
@@ -198,24 +249,34 @@ function drawChart() {
   hit.addEventListener("mouseleave", hide); hit.addEventListener("touchend", hide);
 }
 function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))); const n = raw / p; return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p; }
-drawChart();
 let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { document.querySelector("#chart svg")?.remove(); drawChart(); }, 150); });
 
 // ---- sector bars ----
-const secCount = {}; picks.forEach(r => secCount[r.sector || "Unknown"] = (secCount[r.sector || "Unknown"] || 0) + 1);
-const secs = Object.entries(secCount).sort((a, b) => b[1] - a[1]);
-const maxN = Math.max(1, ...secs.map(s => s[1]));
-document.getElementById("bars").innerHTML = secs.map(([s, n]) =>
-  `<div class="row" title="${esc(s)}: ${n} pick${n > 1 ? "s" : ""}"><span>${esc(s)}</span>
-   <div class="track"><div class="fill" style="width:${n / maxN * 100}%"></div></div><span class="n">${n}</span></div>`).join("") || `<p class="foot">No picks.</p>`;
+function drawBars() {
+  const secCount = {}; picks.forEach(r => secCount[r.sector || "Unknown"] = (secCount[r.sector || "Unknown"] || 0) + 1);
+  const secs = Object.entries(secCount).sort((a, b) => b[1] - a[1]);
+  const maxN = Math.max(1, ...secs.map(s => s[1]));
+  $("bars").innerHTML = secs.map(([s, n]) =>
+    `<div class="row" title="${esc(s)}: ${n} pick${n > 1 ? "s" : ""}"><span>${esc(s)}</span>
+     <div class="track"><div class="fill" style="width:${n / maxN * 100}%"></div></div><span class="n">${n}</span></div>`).join("") || `<p class="foot">No picks.</p>`;
+}
 
 // ---- table ----
-const COLS = [
+const BASE_COLS = [
   ["rank", "#", r => r.rank ?? "–"],
   ["ticker", "Ticker", r => `<span class="tk">${esc(r.ticker)}</span>${r.pick ? ' <span class="badge">pick</span>' : ""}`, "l"],
   ["name", "Company", r => `<div class="nm" title="${esc(r.name)}">${esc(r.name)}</div>`, "l"],
   ["sector", "Sector", r => esc(r.sector), "l"],
   ["score", "Score", r => r.score == null ? "–" : `${r.score.toFixed(0)}<span class="scorebar"><b style="width:${r.score}%"></b></span>`],
+];
+const EXTRA_COLS = {
+  lowvol: [["beta_1y", "Beta", r => r.beta_1y == null ? "–" : r.beta_1y.toFixed(2)],
+           ["max_dd_1y", "Max DD 1y", r => `<span class="${cls(r.max_dd_1y)}">${pct(r.max_dd_1y, 0)}</span>`]],
+  trend: [["up_months_12", "Up months", r => r.up_months_12 == null ? "–" : Math.round(r.up_months_12 * 12) + "/12"],
+          ["ma200_slope", "200d slope", r => `<span class="${cls(r.ma200_slope)}">${spct(r.ma200_slope, 1)}</span>`]],
+  pullback: [["dist_50dma", "vs 50d avg", r => `<span class="${cls(r.dist_50dma)}">${spct(r.dist_50dma, 1)}</span>`]],
+};
+const REST_COLS = [
   ["price", "Price", r => r.price == null ? "–" : "$" + r.price.toFixed(2)],
   ["ret_12_1", "12-1 mo", r => `<span class="${cls(r.ret_12_1)}">${spct(r.ret_12_1)}</span>`],
   ["ret_6_1", "6-1 mo", r => `<span class="${cls(r.ret_6_1)}">${spct(r.ret_6_1)}</span>`],
@@ -227,12 +288,14 @@ const COLS = [
   ["above_200dma", "> 200d", r => r.above_200dma ? "✓" : "✗"],
   ["dollar_vol_20d", "$ Vol/day", r => money(r.dollar_vol_20d)],
 ];
+const cols = () => [...BASE_COLS, ...(EXTRA_COLS[cur.key] || []), ...REST_COLS];
 let view = "pick", sortKey = "rank", sortDir = 1;
-[...new Set(rows.map(r => r.sector).filter(Boolean))].sort().forEach(s =>
-  document.getElementById("sector").insertAdjacentHTML("beforeend", `<option>${esc(s)}</option>`));
+[...new Set(baseRows.map(r => r.sector).filter(Boolean))].sort().forEach(s =>
+  $("sector").insertAdjacentHTML("beforeend", `<option>${esc(s)}</option>`));
 
 function render() {
-  const sec = document.getElementById("sector").value, q = document.getElementById("q").value.trim().toLowerCase();
+  const COLS = cols();
+  const sec = $("sector").value, q = $("q").value.trim().toLowerCase();
   let list = rows.filter(r => r.rank != null && (view === "all" || (view === "pick" ? r.pick : r.eligible)));
   if (sec) list = list.filter(r => r.sector === sec);
   if (q) list = list.filter(r => (r.ticker + " " + r.name).toLowerCase().includes(q));
@@ -243,20 +306,22 @@ function render() {
     `<th class="${c || ""}" data-k="${k}">${l}${k === sortKey ? (sortDir > 0 ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr>";
   document.querySelector("#tbl tbody").innerHTML = list.map(r =>
     "<tr>" + COLS.map(([, , f, c]) => `<td class="${c || ""}">${f(r)}</td>`).join("") + "</tr>").join("");
-  document.getElementById("count").textContent = `${list.length} stocks`;
+  $("count").textContent = `${list.length} stocks`;
 }
 document.querySelector("#tbl thead").addEventListener("click", e => {
   const k = e.target.closest("th")?.dataset.k; if (!k) return;
-  if (k === sortKey) sortDir *= -1; else { sortKey = k; sortDir = ["rank", "ticker", "name", "sector", "vol_1y"].includes(k) ? 1 : -1; }
+  if (k === sortKey) sortDir *= -1; else { sortKey = k; sortDir = ["rank", "ticker", "name", "sector", "vol_1y", "beta_1y"].includes(k) ? 1 : -1; }
   render();
 });
-document.getElementById("view").addEventListener("click", e => {
+$("view").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   view = b.dataset.v; document.querySelectorAll("#view button").forEach(x => x.classList.toggle("on", x === b)); render();
 });
-document.getElementById("sector").addEventListener("change", render);
-document.getElementById("q").addEventListener("input", render);
-render();
+$("sector").addEventListener("change", render);
+$("q").addEventListener("input", render);
+
+setStrategy(location.hash.slice(1) || "momentum", false);
+addEventListener("hashchange", () => setStrategy(location.hash.slice(1) || "momentum", false));
 </script>
 </body>
 </html>

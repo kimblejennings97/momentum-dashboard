@@ -36,7 +36,8 @@ jobs:
       - name: Commit the new dashboard
         run: |
           cp data/dashboard.html index.html
-          git add index.html data/universe.csv
+          cp data/picks.json picks.json
+          git add index.html picks.json data/universe.csv
           if git diff --cached --quiet; then echo "Nothing changed"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
